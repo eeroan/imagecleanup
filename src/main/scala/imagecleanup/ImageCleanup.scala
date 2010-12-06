@@ -25,19 +25,21 @@ object ImageCleanup {
 
   def deleteCorruptedImages(dir: File) {
     println(dir.getAbsolutePath)
-    val (allFiles, allDirs) = dir.listFiles.toList.partition(_.isFile)
+    val (allFiles, allDirs) = filesAndDirs(dir)
     allFiles.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase)).foreach(moveIfNotOk)
-    allDirs.filter(f => !ignoredDirs.contains(f.getName)).foreach(deleteCorruptedImages)
+    filteredDirs(allDirs).foreach(deleteCorruptedImages)
   }
 
+  def filesAndDirs(dir: File) = dir.listFiles.toList.partition(_.isFile)
+  def filteredDirs(files: List[File]) = files.filter(f => !ignoredDirs.contains(f.getName))
   def checkFolder(dir: File) {
-    val (allFiles, allDirs) = dir.listFiles.toList.partition(_.isFile)
+    val (allFiles, allDirs) = filesAndDirs(dir)
     val files = allFiles.map(_.getName).filter(!ignoredFiles.contains(_))
-    val dirs = allDirs.map(_.getName).filter(!ignoredDirs.contains(_))
+    val dirs = filteredDirs(allDirs)
     if (!files.isEmpty && !dirs.isEmpty) {
       System.err.println("DIR:" + dir.getAbsolutePath)
       println(pretty(files.take(5)))
-      System.err.println(pretty(dirs.take(5)))
+      System.err.println(pretty(dirs.map(_.getName).take(5)))
     }
     allDirs.foreach(checkFolder)
   }
