@@ -7,18 +7,23 @@ import java.lang.String
 object ImageCleanup {
   val ignoredFiles = List("Thumbs.db", ".DS_Store", ".localized", ".picasa.ini")
   val ignoredDirs = List(".picasaoriginals")
-  val extensions = List("jpg", "png", "jpeg", "tiff", "gif", "bmp","nef")
+  val extensions = List("jpg", "png", "jpeg", "tiff", "gif", "bmp", "nef")
   val temp = new File(System.getProperty("tempDir"))
 
   def main(args: Array[String]) {
     val root = new File(System.getProperty("rootDir"))
     //checkFolder(root)
     //moveCorruptedImagesToTemp(root)
-    renameFilesWithNumberSign(root);
+    //renameFilesWithNumberSign(root);
+    deleteDuplicates(root);
+  }
+
+  def deleteDuplicates(root: File) {
+    true
   }
 
   def renameFilesWithNumberSign(root: File) {
-    forEachFolder(root, file => {
+    forEachFile(root, file => {
       val name: String = file.getName
       if (name.startsWith("#")) {
         val start: String = name.substring(0, 3)
@@ -32,7 +37,7 @@ object ImageCleanup {
           case _ => System.err.println(name); name
         }
         val newFile = new File(file.getParent, newName)
-        println(file.getAbsolutePath+" -> "+newFile.getAbsolutePath)
+        println(file.getAbsolutePath + " -> " + newFile.getAbsolutePath)
         file.renameTo(newFile)
       }
     })
@@ -52,20 +57,17 @@ object ImageCleanup {
 
   def pretty(files: List[String]) = files.mkString("\n")
 
-  def moveCorruptedImagesToTemp(dir: File) {
-    forEachFolder(dir, file => moveIfNotOk(file))
-  }
+  def moveCorruptedImagesToTemp(dir: File) = forEachFile(dir, file => moveIfNotOk(file))
 
-  def forEachFolder(dir: File, action: (File) => Unit) {
+  def forEachFile(dir: File, action: (File) => Unit) = forEachFolder(dir, files => files.foreach(action))
+
+  def forEachFolder(dir: File, action: (List[File]) => Unit) {
     val (allFiles, allDirs) = filesAndDirs(dir)
-    //println(dir.getAbsolutePath)
-    allFiles.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase)).foreach(action)
+    action(allFiles.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase)))
     filteredDirs(allDirs).foreach(forEachFolder(_, action))
   }
 
-  def moveIfNotOk(img: File) {
-    if (!isOk(img)) img.renameTo(new File(temp, img.getName))
-  }
+  def moveIfNotOk(img: File) = if (!isOk(img)) img.renameTo(new File(temp, img.getName))
 
   def filesAndDirs(dir: File) = dir.listFiles.toList.partition(_.isFile)
 
