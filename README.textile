@@ -1,0 +1,1 @@
+Utility for deleting duplicate images from filesystem. Created for own purposes (with scala).
