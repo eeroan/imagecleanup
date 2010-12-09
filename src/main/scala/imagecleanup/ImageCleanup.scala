@@ -3,6 +3,7 @@ package imagecleanup
 import java.io.{FileFilter, File}
 import javax.imageio.ImageIO
 import java.lang.String
+import collection.immutable.{List, Map}
 
 object ImageCleanup {
   val ignoredFiles = List("Thumbs.db", ".DS_Store", ".localized", ".picasa.ini")
@@ -19,15 +20,22 @@ object ImageCleanup {
   }
 
   def deleteDuplicates(root: File) {
-    true
+    forEachFolder(root, files => {
+      val duplicates: Map[Long, List[File]] = files.groupBy(_.length).filter(_._2.size > 1)
+      duplicates.map(_._2).foreach(files => {
+        var filtered = files.filter(file => file.getName.startsWith("FILE"))
+        //TODO: preserve one file from duplicates
+        System.err.println(files.mkString("*"))
+        //filtered.foreach(moveToTemp)
+      })
+    })
   }
 
   def renameFilesWithNumberSign(root: File) {
     forEachFile(root, file => {
       val name: String = file.getName
       if (name.startsWith("#")) {
-        val start: String = name.substring(0, 3)
-        val newName = start match {
+        val newName = name.substring(0, 3) match {
           case "#SC" => name.replace("#", "D")
           case "#sc" => name.replace("#", "d")
           case "#MG" => name.replace("#", "I")
@@ -67,7 +75,11 @@ object ImageCleanup {
     filteredDirs(allDirs).foreach(forEachFolder(_, action))
   }
 
-  def moveIfNotOk(img: File) = if (!isOk(img)) img.renameTo(new File(temp, img.getName))
+  def moveIfNotOk(img: File) = if (!isOk(img)) moveToTemp(img)
+
+  def moveToTemp(file: File) {
+    file.renameTo(new File(temp, file.getName))
+  }
 
   def filesAndDirs(dir: File) = dir.listFiles.toList.partition(_.isFile)
 
