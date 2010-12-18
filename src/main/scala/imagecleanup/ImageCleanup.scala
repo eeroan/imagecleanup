@@ -38,7 +38,7 @@ object ImageCleanup {
     val md5 = MessageDigest.getInstance("MD5")
     md5.reset()
     md5.update(bytes)
-    md5.digest().map(0xFF & _).map{"%02x".format(_)}.foldLeft("") {_ + _}
+    md5.digest().map(0xFF & _).map("%02x".format(_)).mkString("")
   }
 
   def renameFilesWithNumberSign(root: File) {
