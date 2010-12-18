@@ -39,7 +39,12 @@
   </pluginRepositories>
 -->
   <dependencies>
-    <dependency>
+      <dependency>
+          <groupId>commons-io</groupId>
+          <artifactId>commons-io</artifactId>
+          <version>1.4</version>
+      </dependency>
+      <dependency>
       <groupId>org.scala-lang</groupId>
       <artifactId>scala-library</artifactId>
       <version>${scala.version}</version>

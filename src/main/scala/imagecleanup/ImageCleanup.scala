@@ -1,9 +1,11 @@
 package imagecleanup
 
-import java.io.{FileFilter, File}
 import javax.imageio.ImageIO
 import java.lang.String
 import collection.immutable.{List, Map}
+import java.security.MessageDigest
+import java.io.{FileReader, File}
+import org.apache.commons.io.FileUtils
 
 object ImageCleanup {
   val ignoredFiles = List("Thumbs.db", ".DS_Store", ".localized", ".picasa.ini")
@@ -29,6 +31,14 @@ object ImageCleanup {
         //filtered.foreach(moveToTemp)
       })
     })
+  }
+
+  def md5SumString(file: File): String = {
+    val bytes = FileUtils.readFileToByteArray(file)
+    val md5 = MessageDigest.getInstance("MD5")
+    md5.reset()
+    md5.update(bytes)
+    md5.digest().map(0xFF & _).map{"%02x".format(_)}.foldLeft("") {_ + _}
   }
 
   def renameFilesWithNumberSign(root: File) {
