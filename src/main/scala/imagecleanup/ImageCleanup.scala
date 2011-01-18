@@ -56,15 +56,7 @@ object ImageCleanup {
     md5.digest().map(0xFF & _).map("%02x".format(_)).mkString("")
   }
 
-  def moveCorruptedImagesToTemp(dir: File) = forEachFile(dir, moveIfNotOk)
-
-  def forEachFile(dir: File, action: (File) => Unit) = forEachFolder(dir, _.foreach(action))
-
-  def forEachFolder(dir: File, action: (List[File]) => Unit) {
-    val (allFiles, allDirs) = filesAndDirs(dir)
-    action(allFiles.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase)))
-    allDirs.filter(systemDir).foreach(forEachFolder(_, action))
-  }
+  def moveCorruptedImagesToTemp(dir: File) = recursiveFiles(dir).foreach(moveToTempIfNotOk)
 
   def recursiveFiles(dir: File): List[File] = {
     val (allFiles, allDirs) = filesAndDirs(dir)
@@ -72,7 +64,7 @@ object ImageCleanup {
     filteredFiles ++ allDirs.filter(systemDir).flatMap(recursiveFiles)
   }
 
-  def moveIfNotOk(img: File) = if (!isOk(img)) moveToTemp(img)
+  def moveToTempIfNotOk(img: File) = if (!isOk(img)) moveToTemp(img)
 
   def moveToTemp(file: File) {
     val succeed: Boolean = file.renameTo(new File(temp, file.getName))
