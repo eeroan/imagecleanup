@@ -17,20 +17,18 @@ object ImageCleanup {
 
   def main(args: Array[String]) {
     val root = new File(System.getProperty("rootDir"))
-    //checkFolder(root)
     //moveCorruptedImagesToTemp(root)
-    //renameFilesWithNumberSign(root);
     deleteDuplicates(root);
     println(duration.formatted("%4.1f"))
   }
 
   def duration = (System.currentTimeMillis - startTime) / 1000.0
 
-  //def fileHash: (File) => String = md5SumString(_)
-  def fileHash: (File) => Long = _.length
+  def safeFileHash: (File) => String = md5SumString(_)
+  def fastFileHash: (File) => Long = _.length
 
   def deleteDuplicates(root: File) {
-    val duplicates = recursiveFiles(root).groupBy(fileHash).filter(_._2.size > 1)
+    val duplicates = recursiveFiles(root).groupBy(fastFileHash).filter(_._2.size > 1)
     duplicates.map(_._2.sortBy(priority)).foreach(files => {
       println("->" + sizeAndPath(files.first))
       val removableFiles = files.drop(1)
@@ -59,12 +57,12 @@ object ImageCleanup {
   def moveCorruptedImagesToTemp(dir: File) = recursiveFiles(dir).foreach(moveToTempIfNotOk)
 
   def recursiveFiles(dir: File): List[File] = {
-    val (allFiles, allDirs) = filesAndDirs(dir)
-    val filteredFiles = allFiles.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase))
-    filteredFiles ++ allDirs.filter(systemDir).flatMap(recursiveFiles)
+    val (files, dirs) = filesAndDirs(dir)
+    val filteredFiles = files.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase))
+    filteredFiles ++ dirs.filterNot(systemDir).flatMap(recursiveFiles)
   }
 
-  def moveToTempIfNotOk(img: File) = if (!isOk(img)) moveToTemp(img)
+  def moveToTempIfNotOk(img: File) = if (isCorrupted(img)) moveToTemp(img)
 
   def moveToTemp(file: File) {
     val succeed: Boolean = file.renameTo(new File(temp, file.getName))
@@ -73,12 +71,11 @@ object ImageCleanup {
 
   def filesAndDirs(dir: File) = dir.listFiles.toList.partition(_.isFile)
 
-  def isOk(img: File) = try {
-    ImageIO.read(img).getWidth > 0
+  def isCorrupted(img: File) = try {
+    ImageIO.read(img).getWidth <= 0
   } catch {
-    case e: Exception => false
+    case e: Exception => true
   }
 
-  def systemDir: (File) => Boolean = f => !ignoredDirs.contains(f.getName)
+  def systemDir: (File) => Boolean = f => ignoredDirs.contains(f.getName)
 }
-
