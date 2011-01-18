@@ -7,6 +7,7 @@ import java.security.MessageDigest
 import java.io.File
 import org.apache.commons.io.FileUtils
 
+//Example of VM parameters: -DrootDir=/Users/eea/Pictures -DtempDir=/Users/eea/temp -Xmx512m
 object ImageCleanup {
   val ignoredFiles = List("Thumbs.db", ".DS_Store", ".localized", ".picasa.ini")
   val ignoredDirs = List(".picasaoriginals")
@@ -24,10 +25,9 @@ object ImageCleanup {
 
   def duration = (System.currentTimeMillis - startTime) / 1000.0
 
-  def safeFileHash: (File) => String = md5SumString(_)
-  def fastFileHash: (File) => Long = _.length
-
   def deleteDuplicates(root: File) {
+    def safeFileHash: (File) => String = md5SumString(_)
+    def fastFileHash: (File) => Long = _.length
     val duplicates = recursiveFiles(root).groupBy(fastFileHash).filter(_._2.size > 1)
     duplicates.map(_._2.sortBy(priority)).foreach(files => {
       println("->" + sizeAndPath(files.first))
@@ -54,13 +54,14 @@ object ImageCleanup {
     md5.digest().map(0xFF & _).map("%02x".format(_)).mkString("")
   }
 
-  def moveCorruptedImagesToTemp(dir: File) = recursiveFiles(dir).foreach(moveToTempIfNotOk)
-
   def recursiveFiles(dir: File): List[File] = {
-    val (files, dirs) = filesAndDirs(dir)
+    val (files, dirs) = dir.listFiles.toList.partition(_.isFile)
     val filteredFiles = files.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase))
+    def systemDir: (File) => Boolean = f => ignoredDirs.contains(f.getName)
     filteredFiles ++ dirs.filterNot(systemDir).flatMap(recursiveFiles)
   }
+
+  def moveCorruptedImagesToTemp(dir: File) = recursiveFiles(dir).foreach(moveToTempIfNotOk)
 
   def moveToTempIfNotOk(img: File) = if (isCorrupted(img)) moveToTemp(img)
 
@@ -69,13 +70,9 @@ object ImageCleanup {
     if (!succeed) file.renameTo(new File(temp, "" + duration + "-" + file.getName))
   }
 
-  def filesAndDirs(dir: File) = dir.listFiles.toList.partition(_.isFile)
-
   def isCorrupted(img: File) = try {
     ImageIO.read(img).getWidth <= 0
   } catch {
     case e: Exception => true
   }
-
-  def systemDir: (File) => Boolean = f => ignoredDirs.contains(f.getName)
 }
