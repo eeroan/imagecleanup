@@ -2,16 +2,18 @@ package imagecleanup
 
 import javax.imageio.ImageIO
 import java.lang.String
-import collection.immutable.{List, Map}
+import collection.immutable.List
 import java.security.MessageDigest
-import java.io.{FileReader, File}
+import java.io.File
 import org.apache.commons.io.FileUtils
 
 object ImageCleanup {
   val ignoredFiles = List("Thumbs.db", ".DS_Store", ".localized", ".picasa.ini")
   val ignoredDirs = List(".picasaoriginals")
   val extensions = List("jpg", "png", "jpeg", "tiff", "gif", "bmp", "nef")
+  val priorities = List("DSC", "P", "IM", "FILE", "#")
   val temp = new File(System.getProperty("tempDir"))
+  val startTime = System.currentTimeMillis
 
   def main(args: Array[String]) {
     val root = new File(System.getProperty("rootDir"))
@@ -19,19 +21,32 @@ object ImageCleanup {
     //moveCorruptedImagesToTemp(root)
     //renameFilesWithNumberSign(root);
     deleteDuplicates(root);
+    println(duration.formatted("%4.1f"))
   }
 
+  def duration = (System.currentTimeMillis - startTime) / 1000.0
+
+  //def fileHash: (File) => String = md5SumString(_)
+  def fileHash: (File) => Long = _.length
+
   def deleteDuplicates(root: File) {
-    forEachFolder(root, files => {
-      val duplicates: Map[Long, List[File]] = files.groupBy(_.length).filter(_._2.size > 1)
-      duplicates.map(_._2).foreach(files => {
-        var filtered = files.filter(file => file.getName.startsWith("FILE"))
-        //TODO: preserve one file from duplicates
-        System.err.println(files.mkString("*"))
-        //filtered.foreach(moveToTemp)
-      })
+    val duplicates = recursiveFiles(root).groupBy(fileHash).filter(_._2.size > 1)
+    duplicates.map(_._2.sortBy(priority)).foreach(files => {
+      println("->" + sizeAndPath(files.first))
+      val removableFiles = files.drop(1)
+      println(removableFiles.map(sizeAndPath).mkString("\n"))
+      //  removableFiles.foreach(moveToTemp)
     })
+    println("size: " + duplicates.size)
+
+    def priority(file: File): Int = {
+      val index = priorities.findIndexOf(file.getName.toUpperCase.startsWith)
+      val pathGrade = if (file.getAbsolutePath.contains("Lajittelematta")) 10 else 0
+      pathGrade + (if (index < 0) priorities.size else index)
+    }
   }
+
+  def sizeAndPath(file: File) = "" + file.length + " " + file.getAbsolutePath
 
   def md5SumString(file: File): String = {
     val bytes = FileUtils.readFileToByteArray(file)
@@ -41,54 +56,27 @@ object ImageCleanup {
     md5.digest().map(0xFF & _).map("%02x".format(_)).mkString("")
   }
 
-  def renameFilesWithNumberSign(root: File) {
-    forEachFile(root, file => {
-      val name: String = file.getName
-      if (name.startsWith("#")) {
-        val newName = name.substring(0, 3) match {
-          case "#SC" => name.replace("#", "D")
-          case "#sc" => name.replace("#", "d")
-          case "#MG" => name.replace("#", "I")
-          case "#mg" => name.replace("#", "i")
-          case "#MA" => name.replace("#", "I")
-          case "#ma" => name.replace("#", "i")
-          case _ => System.err.println(name); name
-        }
-        val newFile = new File(file.getParent, newName)
-        println(file.getAbsolutePath + " -> " + newFile.getAbsolutePath)
-        file.renameTo(newFile)
-      }
-    })
-  }
+  def moveCorruptedImagesToTemp(dir: File) = forEachFile(dir, moveIfNotOk)
 
-  def checkFolder(dir: File) {
-    val (allFiles, allDirs) = filesAndDirs(dir)
-    val files = allFiles.map(_.getName).filter(!ignoredFiles.contains(_))
-    val dirs = filteredDirs(allDirs)
-    if (!files.isEmpty && !dirs.isEmpty) {
-      System.err.println("DIR:" + dir.getAbsolutePath)
-      println(pretty(files.take(5)))
-      System.err.println(pretty(dirs.map(_.getName).take(5)))
-    }
-    allDirs.foreach(checkFolder)
-  }
-
-  def pretty(files: List[String]) = files.mkString("\n")
-
-  def moveCorruptedImagesToTemp(dir: File) = forEachFile(dir, file => moveIfNotOk(file))
-
-  def forEachFile(dir: File, action: (File) => Unit) = forEachFolder(dir, files => files.foreach(action))
+  def forEachFile(dir: File, action: (File) => Unit) = forEachFolder(dir, _.foreach(action))
 
   def forEachFolder(dir: File, action: (List[File]) => Unit) {
     val (allFiles, allDirs) = filesAndDirs(dir)
     action(allFiles.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase)))
-    filteredDirs(allDirs).foreach(forEachFolder(_, action))
+    allDirs.filter(systemDir).foreach(forEachFolder(_, action))
+  }
+
+  def recursiveFiles(dir: File): List[File] = {
+    val (allFiles, allDirs) = filesAndDirs(dir)
+    val filteredFiles = allFiles.filter(f => extensions.contains(f.getName.split('.').last.toLowerCase))
+    filteredFiles ++ allDirs.filter(systemDir).flatMap(recursiveFiles)
   }
 
   def moveIfNotOk(img: File) = if (!isOk(img)) moveToTemp(img)
 
   def moveToTemp(file: File) {
-    file.renameTo(new File(temp, file.getName))
+    val succeed: Boolean = file.renameTo(new File(temp, file.getName))
+    if (!succeed) file.renameTo(new File(temp, "" + duration + "-" + file.getName))
   }
 
   def filesAndDirs(dir: File) = dir.listFiles.toList.partition(_.isFile)
@@ -99,6 +87,6 @@ object ImageCleanup {
     case e: Exception => false
   }
 
-  def filteredDirs(files: List[File]) = files.filter(f => !ignoredDirs.contains(f.getName))
+  def systemDir: (File) => Boolean = f => !ignoredDirs.contains(f.getName)
 }
 
